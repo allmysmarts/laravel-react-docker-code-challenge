@@ -1,0 +1,87 @@
+version: '3.8'
+services:
+
+  # MySQL
+  lr-mysql:
+    image: mysql:5.7
+    container_name: lr-mysql
+    restart: unless-stopped
+    tty: true
+    ports:
+      - 3336:3306
+    environment:
+      MYSQL_DATABASE: laravel
+      MYSQL_ROOT_PASSWORD: root
+      SERVICE_TAGS: docker
+      SERVICE_NAME: mysql
+    volumes:
+      - ./mysql/my.cnf:/etc/mysql/my.cnf:ro
+      - dbdata:/var/lib/mysql
+    networks:
+      - lr-network
+
+  # Nginx
+  lr-nginx:
+    image: nginx:alpine
+    container_name: lr-nginx
+    restart: unless-stopped
+    tty: true
+    environment:
+      SERVICE_TAGS: docker
+      SERVICE_NAME: nginx
+    ports:
+      - 127.0.0.2:80:80
+    depends_on:
+      - lr-frontend
+      - lr-backend
+    volumes:
+      - ./nginx/conf.d/:/etc/nginx/conf.d/:ro
+    networks:
+      - lr-network
+
+  # PHP-FPM with backend
+  lr-backend:
+    container_name: lr-backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    tty: true
+    working_dir: /app
+    depends_on:
+      - lr-mysql
+    volumes:
+      - ./backend:/app
+    environment:
+      SERVICE_NAME: backend
+      SERVICE_TAGS: docker
+    networks:
+      - lr-network
+
+  lr-frontend:
+    container_name: lr-frontend
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    tty: true
+    volumes:
+      - ./frontend:/app
+    environment:
+      SERVICE_NAME: frontend
+      SERVICE_TAGS: docker
+      NODE_ENV: development
+    networks:
+      - lr-network
+
+# networks
+networks:
+  lr-network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.host_binding_ipv4: 127.0.0.2
+
+# volume to store DB files
+volumes:
+  dbdata:
+    driver: local
